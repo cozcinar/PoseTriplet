@@ -6,17 +6,21 @@ import torch.nn as nn
 import torch.utils.data
 import torch.utils.data.distributed
 
-from SPPE.src.models.FastPose import createModel
-from SPPE.src.utils.img import flip, shuffleLR
+from joints_detectors.Alphapose.SPPE.src.models.FastPose import createModel
+from joints_detectors.Alphapose.SPPE.src.utils.img import flip, shuffleLR
 
 try:
     torch._utils._rebuild_tensor_v2
 except AttributeError:
-    def _rebuild_tensor_v2(storage, storage_offset, size, stride, requires_grad, backward_hooks):
+
+    def _rebuild_tensor_v2(
+        storage, storage_offset, size, stride, requires_grad, backward_hooks
+    ):
         tensor = torch._utils._rebuild_tensor(storage, storage_offset, size, stride)
         tensor.requires_grad = requires_grad
         tensor._backward_hooks = backward_hooks
         return tensor
+
     torch._utils._rebuild_tensor_v2 = _rebuild_tensor_v2
 
 
@@ -25,9 +29,17 @@ class InferenNet(nn.Module):
         super(InferenNet, self).__init__()
 
         model = createModel().cuda()
-        print('Loading pose model from {}'.format('joints_detectors/Alphapose/models/sppe/duc_se.pth'))
+        print(
+            "Loading pose model from {}".format(
+                "estimator_inference/joints_detectors/Alphapose/models/sppe/duc_se.pth"
+            )
+        )
         sys.stdout.flush()
-        model.load_state_dict(torch.load('joints_detectors/Alphapose/models/sppe/duc_se.pth'))
+        model.load_state_dict(
+            torch.load(
+                "estimator_inference/joints_detectors/Alphapose/models/sppe/duc_se.pth"
+            )
+        )
         model.eval()
         self.pyranet = model
 
@@ -40,8 +52,7 @@ class InferenNet(nn.Module):
         flip_out = self.pyranet(flip(x))
         flip_out = flip_out.narrow(1, 0, 17)
 
-        flip_out = flip(shuffleLR(
-            flip_out, self.dataset))
+        flip_out = flip(shuffleLR(flip_out, self.dataset))
 
         out = (flip_out + out) / 2
 
@@ -53,8 +64,14 @@ class InferenNet_fast(nn.Module):
         super(InferenNet_fast, self).__init__()
 
         model = createModel().cuda()
-        print('Loading pose model from {}'.format('joints_detectors/Alphapose/models/sppe/duc_se.pth'))
-        model.load_state_dict(torch.load('joints_detectors/Alphapose/models/sppe/duc_se.pth'))
+        print(
+            "Loading pose model from {}".format(
+                "joints_detectors/Alphapose/models/sppe/duc_se.pth"
+            )
+        )
+        model.load_state_dict(
+            torch.load("joints_detectors/Alphapose/models/sppe/duc_se.pth")
+        )
         model.eval()
         self.pyranet = model
 

@@ -3,12 +3,14 @@ import time
 
 from common.loss import *
 
+
 # record time
 def update_time(ckpt=None):
     if not ckpt:
         return time.time()
     else:
         return time.time() - float(ckpt), time.time()
+
 
 def mkd(target_dir, get_parent=True):
     # get parent path and create
@@ -18,6 +20,7 @@ def mkd(target_dir, get_parent=True):
         savedir = target_dir
     if not os.path.exists(savedir):
         os.makedirs(savedir, exist_ok=True)
+
 
 def convert_AlphaOpenposeCoco_to_standard16Joint(pose_x):
     """
@@ -31,7 +34,7 @@ def convert_AlphaOpenposeCoco_to_standard16Joint(pose_x):
     # head = 0.5 * (pose_x[:, 1] + pose_x[:, 2])
 
     head_0 = pose_x[:, 0]  # by noise
-    head_1 = (neck - hip)*0.5 + neck  # by backbone
+    head_1 = (neck - hip) * 0.5 + neck  # by backbone
     head_2 = 0.5 * (pose_x[:, 1] + pose_x[:, 2])  # by two eye
     head_3 = 0.5 * (pose_x[:, 3] + pose_x[:, 4])  # by two ear
     head = head_0 * 0.1 + head_1 * 0.6 + head_2 * 0.1 + head_3 * 0.2
@@ -42,6 +45,7 @@ def convert_AlphaOpenposeCoco_to_standard16Joint(pose_x):
     reorder = [17, 12, 14, 16, 11, 13, 15, 18, 19, 20, 5, 7, 9, 6, 8, 10]
     standart_16joint = combine[:, reorder]
     return standart_16joint
+
 
 def convert_hhr_to_standard16Joint(pose_x):
     """
@@ -54,9 +58,11 @@ def convert_hhr_to_standard16Joint(pose_x):
     # standart_16joint = np.delete(standart_17joint, 10, axis=1)
     return standart_16joint
 
+
 def get_detector_2d(detector_name):
     def get_alpha_pose():
         from joints_detectors.Alphapose.gene_npz import generate_kpts as alpha_pose
+
         return alpha_pose
 
     # def get_hr_pose():
@@ -64,11 +70,13 @@ def get_detector_2d(detector_name):
     #     return hr_pose
 
     detector_map = {
-        'alpha_pose': get_alpha_pose,
+        "alpha_pose": get_alpha_pose,
         # 'hr_pose': get_hr_pose,
     }
 
-    assert detector_name in detector_map, f'2D detector: {detector_name} not implemented yet!'
+    assert (
+        detector_name in detector_map
+    ), f"2D detector: {detector_name} not implemented yet!"
 
     return detector_map[detector_name]()
 
@@ -84,18 +92,22 @@ class Skeleton:
         # return [1, 2, 3, 9, 10]
         return [1, 2, 3, 13, 14, 15]
 
+
 import cv2
 import moviepy.video.io.ImageSequenceClip
+
 
 def image_sequence_to_video(img_lst, output_path, frame_rate):
     # frame_size = (500, 500)
     # output_path = 'output_video.mp4'
     # frame_rate = 25
     frame_size = cv2.imread(img_lst[0]).shape[:2]
-    print('frame_size: {}'.format(frame_size))
+    print("frame_size: {}".format(frame_size))
     if not os.path.isfile(output_path):
-        clip = moviepy.video.io.ImageSequenceClip.ImageSequenceClip(img_lst, fps=frame_rate)
+        clip = moviepy.video.io.ImageSequenceClip.ImageSequenceClip(
+            img_lst, fps=frame_rate
+        )
         clip.write_videofile(output_path)
     else:
-        print('{} exist already.'.format(output_path))
+        print("{} exist already.".format(output_path))
     return frame_size

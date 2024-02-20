@@ -6,22 +6,28 @@ import numpy as np
 import torch.utils.data
 from tqdm import tqdm
 
-from SPPE.src.main_fast_inference import *
+from joints_detectors.Alphapose.SPPE.src.main_fast_inference import *
 from common.utils import calculate_area
-from dataloader import DetectionLoader, DetectionProcessor, DataWriter, Mscoco, VideoLoader
-from fn import getTime
-from opt import opt
-from pPose_nms import write_json
+from joints_detectors.Alphapose.dataloader import (
+    DetectionLoader,
+    DetectionProcessor,
+    DataWriter,
+    Mscoco,
+    VideoLoader,
+)
+from joints_detectors.Alphapose.fn import getTime
+from joints_detectors.Alphapose.opt import opt
+from joints_detectors.Alphapose.pPose_nms import write_json
 
 args = opt
-args.vis_fast = False # True  # add for speed
-args.dataset = 'coco'
+args.vis_fast = False  # True  # add for speed
+args.dataset = "coco"
 args.fast_inference = False
 args.save_img = False  # save time and space.
 args.sp = True
 if not args.sp:
-    torch.multiprocessing.set_start_method('forkserver', force=True)
-    torch.multiprocessing.set_sharing_strategy('file_system')
+    torch.multiprocessing.set_start_method("forkserver", force=True)
+    torch.multiprocessing.set_sharing_strategy("file_system")
 
 
 def model_load():
@@ -41,13 +47,15 @@ def generate_kpts(video_file):
     kpts = []
     no_person = []
     for i in range(len(final_result)):
-        if not final_result[i]['result']:  # No people
+        if not final_result[i]["result"]:  # No people
             no_person.append(i)
             kpts.append(None)
             continue
 
-        kpt = max(final_result[i]['result'],
-                  key=lambda x: x['proposal_score'].data[0] * calculate_area(x['keypoints']), )['keypoints']
+        kpt = max(
+            final_result[i]["result"],
+            key=lambda x: x["proposal_score"].data[0] * calculate_area(x["keypoints"]),
+        )["keypoints"]
 
         kpts.append(kpt.data.numpy())
 
@@ -56,7 +64,7 @@ def generate_kpts(video_file):
         no_person.clear()
 
     for n in no_person:
-        kpts[n] = kpts[-1] if kpts[-1] else kpts[n-1]
+        kpts[n] = kpts[-1] if kpts[-1] else kpts[n - 1]
 
     # ============ Changing End ++++++++++
 
@@ -75,7 +83,7 @@ def handle_video(video_file):
     # =========== common ===============
     args.video = video_file
     base_name = os.path.basename(args.video)
-    video_name = base_name[:base_name.rfind('.')]
+    video_name = base_name[: base_name.rfind(".")]
     # =========== end common ===============
     # =========== image ===============
     # img_path = f'outputs/alpha_pose_{video_name}/split_image/'
@@ -100,23 +108,23 @@ def handle_video(video_file):
     # print(f'Totally {data_loader.datalen} images')
     # =========== end image ===============
     # =========== video ===============
-    args.outputpath = f'outputs/alpha_pose_{video_name}'
+    args.outputpath = f"outputs/alpha_pose_{video_name}"
     if os.path.exists(args.outputpath):
-        shutil.rmtree(f'{args.outputpath}/vis', ignore_errors=True)
+        shutil.rmtree(f"{args.outputpath}/vis", ignore_errors=True)
     else:
         os.mkdir(args.outputpath)
     videofile = args.video
     mode = args.mode
     if not len(videofile):
-        raise IOError('Error: must contain --video')
+        raise IOError("Error: must contain --video")
     # Load input video
     data_loader = VideoLoader(videofile, batchSize=args.detbatch).start()
     (fourcc, fps, frameSize) = data_loader.videoinfo()
-    print('the video is {} f/s'.format(fps))
-    print('the video frameSize: {}'.format(frameSize))
+    print("the video is {} f/s".format(fps))
+    print("the video frameSize: {}".format(frameSize))
     # =========== end video ===============
     # Load detection loader
-    print('Loading YOLO model..')
+    print("Loading YOLO model..")
     sys.stdout.flush()
     det_loader = DetectionLoader(data_loader, batchSize=args.detbatch).start()
     #  start a thread to read frames from the file video stream
@@ -129,16 +137,15 @@ def handle_video(video_file):
         pose_model = InferenNet(4 * 1 + 1, pose_dataset)
     pose_model.cuda()
     pose_model.eval()
-    runtime_profile = {
-        'dt': [],
-        'pt': [],
-        'pn': []
-    }
+    runtime_profile = {"dt": [], "pt": [], "pn": []}
     # Data writer
-    save_path = os.path.join(args.outputpath, 'AlphaPose_' + ntpath.basename(video_file).split('.')[0] + '.avi')
+    save_path = os.path.join(
+        args.outputpath,
+        "AlphaPose_" + ntpath.basename(video_file).split(".")[0] + ".avi",
+    )
     # writer = DataWriter(args.save_video, save_path, cv2.VideoWriter_fourcc(*'XVID'), fps, frameSize).start()
     writer = DataWriter(args.save_video).start()
-    print('Start pose estimation...')
+    print("Start pose estimation...")
     im_names_desc = tqdm(range(data_loader.length()))
     batchSize = args.posebatch
     for i in im_names_desc:
@@ -147,14 +154,16 @@ def handle_video(video_file):
         with torch.no_grad():
             (inps, orig_img, im_name, boxes, scores, pt1, pt2) = det_processor.read()
             if orig_img is None:
-                print(f'{i}-th image read None: handle_video')
+                print(f"{i}-th image read None: handle_video")
                 break
             if boxes is None or boxes.nelement() == 0:
-                writer.save(None, None, None, None, None, orig_img, im_name.split('/')[-1])
+                writer.save(
+                    None, None, None, None, None, orig_img, im_name.split("/")[-1]
+                )
                 continue
 
             ckpt_time, det_time = getTime(start_time)
-            runtime_profile['dt'].append(det_time)
+            runtime_profile["dt"].append(det_time)
             # Pose Estimation
 
             datalen = inps.size(0)
@@ -164,28 +173,33 @@ def handle_video(video_file):
             num_batches = datalen // batchSize + leftover
             hm = []
             for j in range(num_batches):
-                inps_j = inps[j * batchSize:min((j + 1) * batchSize, datalen)].cuda()
+                inps_j = inps[j * batchSize : min((j + 1) * batchSize, datalen)].cuda()
                 hm_j = pose_model(inps_j)
                 hm.append(hm_j)
             hm = torch.cat(hm)
             ckpt_time, pose_time = getTime(ckpt_time)
-            runtime_profile['pt'].append(pose_time)
+            runtime_profile["pt"].append(pose_time)
 
             hm = hm.cpu().data
-            writer.save(boxes, scores, hm, pt1, pt2, orig_img, im_name.split('/')[-1])
+            writer.save(boxes, scores, hm, pt1, pt2, orig_img, im_name.split("/")[-1])
 
             ckpt_time, post_time = getTime(ckpt_time)
-            runtime_profile['pn'].append(post_time)
+            runtime_profile["pn"].append(post_time)
 
         if args.profile:
             # TQDM
             im_names_desc.set_description(
-                'det time: {dt:.4f} | pose time: {pt:.4f} | post processing: {pn:.4f}'.format(
-                    dt=np.mean(runtime_profile['dt']), pt=np.mean(runtime_profile['pt']), pn=np.mean(runtime_profile['pn']))
+                "det time: {dt:.4f} | pose time: {pt:.4f} | post processing: {pn:.4f}".format(
+                    dt=np.mean(runtime_profile["dt"]),
+                    pt=np.mean(runtime_profile["pt"]),
+                    pn=np.mean(runtime_profile["pn"]),
+                )
             )
     if (args.save_img or args.save_video) and not args.vis_fast:
-        print('===========================> Rendering remaining images in the queue...')
-        print('===========================> If this step takes too long, you can enable the --vis_fast flag to use fast rendering (real-time).')
+        print("===========================> Rendering remaining images in the queue...")
+        print(
+            "===========================> If this step takes too long, you can enable the --vis_fast flag to use fast rendering (real-time)."
+        )
     while writer.running():
         pass
     writer.stop()
@@ -193,6 +207,7 @@ def handle_video(video_file):
     write_json(final_result, args.outputpath)
 
     return final_result, video_name
+
 
 def mkd(target_dir, get_parent=True):
     # get parent path and create
@@ -205,8 +220,8 @@ def mkd(target_dir, get_parent=True):
 
 
 if __name__ == "__main__":
-    os.chdir('../..')
+    os.chdir("../..")
     print(os.getcwd())
 
     # handle_video(img_path='outputs/image/kobe')
-    generate_kpts('outputs/dance.mp4')
+    generate_kpts("outputs/dance.mp4")

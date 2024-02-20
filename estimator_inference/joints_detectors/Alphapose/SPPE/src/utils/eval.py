@@ -1,8 +1,19 @@
-from opt import opt
+from joints_detectors.Alphapose.opt import opt
+
 try:
-    from utils.img import transformBoxInvert, transformBoxInvert_batch, findPeak, processPeaks
+    from utils.img import (
+        transformBoxInvert,
+        transformBoxInvert_batch,
+        findPeak,
+        processPeaks,
+    )
 except ImportError:
-    from SPPE.src.utils.img import transformBoxInvert, transformBoxInvert_batch, findPeak, processPeaks
+    from joints_detectors.Alphapose.SPPE.src.utils.img import (
+        transformBoxInvert,
+        transformBoxInvert_batch,
+        findPeak,
+        processPeaks,
+    )
 import torch
 
 
@@ -39,7 +50,7 @@ def heatmapAccuracy(output, label, idxs):
 
     norm = torch.ones(preds.size(0)) * opt.outputResH / 10
     dists = calc_dists(preds, gt, norm)
-    #print(dists)
+    # print(dists)
     acc = torch.zeros(len(idxs) + 1)
     avg_acc = 0
     cnt = 0
@@ -54,10 +65,10 @@ def heatmapAccuracy(output, label, idxs):
 
 
 def getPreds(hm):
-    ''' get predictions from score maps in torch Tensor
-        return type: torch.LongTensor
-    '''
-    assert hm.dim() == 4, 'Score maps should be 4-dim'
+    """get predictions from score maps in torch Tensor
+    return type: torch.LongTensor
+    """
+    assert hm.dim() == 4, "Score maps should be 4-dim"
     maxval, idx = torch.max(hm.view(hm.size(0), hm.size(1), -1), 2)
 
     maxval = maxval.view(hm.size(0), hm.size(1), 1)
@@ -80,19 +91,22 @@ def calc_dists(preds, target, normalize):
     for n in range(preds.size(0)):
         for c in range(preds.size(1)):
             if target[n, c, 0] > 0 and target[n, c, 1] > 0:
-                dists[c, n] = torch.dist(
-                    preds[n, c, :], target[n, c, :]) / normalize[n]
+                dists[c, n] = torch.dist(preds[n, c, :], target[n, c, :]) / normalize[n]
             else:
                 dists[c, n] = -1
     return dists
 
 
 def dist_acc(dists, thr=0.5):
-    ''' Return percentage below threshold while ignoring values with a -1 '''
+    """Return percentage below threshold while ignoring values with a -1"""
     if dists.ne(-1).sum() > 0:
-        return dists.le(thr).eq(dists.ne(-1)).float().sum() * 1.0 / dists.ne(-1).float().sum()
+        return (
+            dists.le(thr).eq(dists.ne(-1)).float().sum()
+            * 1.0
+            / dists.ne(-1).float().sum()
+        )
     else:
-        return - 1
+        return -1
 
 
 def postprocess(output):
@@ -103,7 +117,9 @@ def postprocess(output):
             hm = output[i][j]
             pX, pY = int(round(p[i][j][0])), int(round(p[i][j][1]))
             if 0 < pX < opt.outputResW - 1 and 0 < pY < opt.outputResH - 1:
-                diff = torch.Tensor((hm[pY][pX + 1] - hm[pY][pX - 1], hm[pY + 1][pX] - hm[pY - 1][pX]))
+                diff = torch.Tensor(
+                    (hm[pY][pX + 1] - hm[pY][pX - 1], hm[pY + 1][pX] - hm[pY - 1][pX])
+                )
                 p[i][j] += diff.sign() * 0.25
     p -= 0.5
 
@@ -111,11 +127,11 @@ def postprocess(output):
 
 
 def getPrediction(hms, pt1, pt2, inpH, inpW, resH, resW):
-    '''
+    """
     Get keypoint location from heatmaps
-    '''
+    """
 
-    assert hms.dim() == 4, 'Score maps should be 4-dim'
+    assert hms.dim() == 4, "Score maps should be 4-dim"
     maxval, idx = torch.max(hms.view(hms.size(0), hms.size(1), -1), 2)
 
     maxval = maxval.view(hms.size(0), hms.size(1), 1)
@@ -133,10 +149,13 @@ def getPrediction(hms, pt1, pt2, inpH, inpW, resH, resW):
     for i in range(preds.size(0)):
         for j in range(preds.size(1)):
             hm = hms[i][j]
-            pX, pY = int(round(float(preds[i][j][0]))), int(round(float(preds[i][j][1])))
+            pX, pY = int(round(float(preds[i][j][0]))), int(
+                round(float(preds[i][j][1]))
+            )
             if 0 < pX < opt.outputResW - 1 and 0 < pY < opt.outputResH - 1:
                 diff = torch.Tensor(
-                    (hm[pY][pX + 1] - hm[pY][pX - 1], hm[pY + 1][pX] - hm[pY - 1][pX]))
+                    (hm[pY][pX + 1] - hm[pY][pX - 1], hm[pY + 1][pX] - hm[pY - 1][pX])
+                )
                 preds[i][j] += diff.sign() * 0.25
     preds += 0.2
 
@@ -149,20 +168,21 @@ def getPrediction(hms, pt1, pt2, inpH, inpW, resH, resW):
 
 def getMultiPeakPrediction(hms, pt1, pt2, inpH, inpW, resH, resW):
 
-    assert hms.dim() == 4, 'Score maps should be 4-dim'
+    assert hms.dim() == 4, "Score maps should be 4-dim"
 
     preds_img = {}
     hms = hms.numpy()
-    for n in range(hms.shape[0]):        # Number of samples
-        preds_img[n] = {}           # Result of sample: n
-        for k in range(hms.shape[1]):    # Number of keypoints
-            preds_img[n][k] = []    # Result of keypoint: k
+    for n in range(hms.shape[0]):  # Number of samples
+        preds_img[n] = {}  # Result of sample: n
+        for k in range(hms.shape[1]):  # Number of keypoints
+            preds_img[n][k] = []  # Result of keypoint: k
             hm = hms[n][k]
 
             candidate_points = findPeak(hm)
 
-            res_pt = processPeaks(candidate_points, hm,
-                                  pt1[n], pt2[n], inpH, inpW, resH, resW)
+            res_pt = processPeaks(
+                candidate_points, hm, pt1[n], pt2[n], inpH, inpW, resH, resW
+            )
 
             preds_img[n][k] = res_pt
 
@@ -170,14 +190,14 @@ def getMultiPeakPrediction(hms, pt1, pt2, inpH, inpW, resH, resW):
 
 
 def getPrediction_batch(hms, pt1, pt2, inpH, inpW, resH, resW):
-    '''
+    """
     Get keypoint location from heatmaps
     pt1, pt2:   [n, 2]
     OUTPUT:
         preds:  [n, 17, 2]
-    '''
+    """
 
-    assert hms.dim() == 4, 'Score maps should be 4-dim'
+    assert hms.dim() == 4, "Score maps should be 4-dim"
     flat_hms = hms.view(hms.size(0), hms.size(1), -1)
     maxval, idx = torch.max(flat_hms, 2)
 
